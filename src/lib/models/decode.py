@@ -100,24 +100,42 @@ def _topk_channel(scores, K=40):
 
       return topk_scores, topk_inds, topk_ys, topk_xs
 
+# oroginal
+# def _topk(scores, K=40):
+#     batch, cat, height, width = scores.size()
+      
+#     topk_scores, topk_inds = torch.topk(scores.view(batch, cat, -1), K)
+
+#     topk_inds = topk_inds % (height * width)
+#     topk_ys   = (topk_inds / width).int().float()
+#     topk_xs   = (topk_inds % width).int().float()
+      
+#     topk_score, topk_ind = torch.topk(topk_scores.view(batch, -1), K)
+#     topk_clses = (topk_ind / K).int()
+#     topk_inds = _gather_feat(
+#         topk_inds.view(batch, -1, 1), topk_ind).view(batch, K)
+#     topk_ys = _gather_feat(topk_ys.view(batch, -1, 1), topk_ind).view(batch, K)
+#     topk_xs = _gather_feat(topk_xs.view(batch, -1, 1), topk_ind).view(batch, K)
+
+#     return topk_score, topk_inds, topk_clses, topk_ys, topk_xs
+
 def _topk(scores, K=40):
     batch, cat, height, width = scores.size()
-      
-    topk_scores, topk_inds = torch.topk(scores.view(batch, cat, -1), K)
+
+    topk_scores, topk_inds = torch.topk(scores.view(batch, cat, -1), K) #-1
 
     topk_inds = topk_inds % (height * width)
-    topk_ys   = (topk_inds / width).int().float()
-    topk_xs   = (topk_inds % width).int().float()
-      
-    topk_score, topk_ind = torch.topk(topk_scores.view(batch, -1), K)
+    topk_ys = (topk_inds / width).int().float()
+    topk_xs = (topk_inds % width).int().float()
+
+    topk_score, topk_ind = torch.topk(topk_scores.view(batch, -1), K) #-1
     topk_clses = (topk_ind / K).int()
     topk_inds = _gather_feat(
-        topk_inds.view(batch, -1, 1), topk_ind).view(batch, K)
-    topk_ys = _gather_feat(topk_ys.view(batch, -1, 1), topk_ind).view(batch, K)
-    topk_xs = _gather_feat(topk_xs.view(batch, -1, 1), topk_ind).view(batch, K)
+        topk_inds.view(batch, -1, 1), topk_ind).view(batch, K) #-1
+    topk_ys = _gather_feat(topk_ys.view(batch, -1, 1), topk_ind).view(batch, K) #-1
+    topk_xs = _gather_feat(topk_xs.view(batch, -1, 1), topk_ind).view(batch, K) #-1
 
     return topk_score, topk_inds, topk_clses, topk_ys, topk_xs
-
 
 def agnex_ct_decode(
     t_heat, l_heat, b_heat, r_heat, ct_heat, 
@@ -494,8 +512,18 @@ def ctdet_decode(heat, wh, reg=None, cat_spec_wh=False, K=100):
       
     return detections
 
+
 def multi_pose_decode(
-    heat, wh, kps, reg=None, hm_hp=None, hp_offset=None, K=100):
+    heat, wh, kps, reg=None, hm_hp=None, hp_offset=None, K=1):
+    
+  K=1
+# def multi_pose_decode(
+#     heat, kps, K=1):
+#   K = 1
+#   reg = None
+#   heat = None
+#   wh = None
+  
   batch, cat, height, width = heat.size()
   num_joints = kps.shape[1] // 2
   # heat = torch.sigmoid(heat)
@@ -504,9 +532,28 @@ def multi_pose_decode(
   scores, inds, clses, ys, xs = _topk(heat, K=K)
 
   kps = _transpose_and_gather_feat(kps, inds)
+  
+  # return kps # success convert tot tensorrt 7 !!!
+  
   kps = kps.view(batch, K, num_joints * 2)
-  kps[..., ::2] += xs.view(batch, K, 1).expand(batch, K, num_joints)
-  kps[..., 1::2] += ys.view(batch, K, 1).expand(batch, K, num_joints)
+  # return kps # success convert tot tensorrt 7 !!!
+
+  # kps[..., ::2] += xs.view(batch, K, 1).expand(batch, K, num_joints)
+  # kps[..., 1::2] += ys.view(batch, K, 1).expand(batch, K, num_joints)
+  
+  kps_x = kps[..., ::2]  # Все x-координаты
+  kps_y = kps[..., 1::2]  # Все y-координаты
+
+  # return kps_y # success convert tot tensorrt 7 !!!
+
+  # Добавляем координаты
+  kps_x = kps_x + xs.unsqueeze(-1).repeat(1, 1, num_joints) # num_joints = 5
+  kps_y = kps_y + ys.unsqueeze(-1).repeat(1, 1, num_joints)
+
+  kps = torch.stack((kps_x, kps_y), dim=-1).view_as(kps)
+  
+  # return kps # success convert tot tensorrt 7 !!!
+  
   if reg is not None:
     reg = _transpose_and_gather_feat(reg, inds)
     reg = reg.view(batch, K, 2)
@@ -524,6 +571,14 @@ def multi_pose_decode(
                       ys - wh[..., 1:2] / 2,
                       xs + wh[..., 0:1] / 2, 
                       ys + wh[..., 1:2] / 2], dim=2)
+  
+  # return bboxes # success convert tot tensorrt 7 !!!
+  # detections = torch.cat([bboxes, scores, kps, clses], dim=2)
+  # return detections # success convert tot tensorrt 7 !!!
+  
+  detections = torch.cat([bboxes, scores, kps, clses], dim=2)
+  return detections
+
   if hm_hp is not None:
       hm_hp = _nms(hm_hp)
       thresh = 0.1
@@ -543,29 +598,93 @@ def multi_pose_decode(
         
       mask = (hm_score > thresh).float()
       hm_score = (1 - mask) * -1 + mask * hm_score
+      
+      # return hm_score # success convert tot tensorrt 7 !!!
+      
       hm_ys = (1 - mask) * (-10000) + mask * hm_ys
       hm_xs = (1 - mask) * (-10000) + mask * hm_xs
       hm_kps = torch.stack([hm_xs, hm_ys], dim=-1).unsqueeze(
           2).expand(batch, num_joints, K, K, 2)
+      
+      # return hm_kps
+      
       dist = (((reg_kps - hm_kps) ** 2).sum(dim=4) ** 0.5)
       min_dist, min_ind = dist.min(dim=3) # b x J x K
-      hm_score = hm_score.gather(2, min_ind).unsqueeze(-1) # b x J x K x 1
+      # hm_score_test = hm_score.gather(2, min_ind).unsqueeze(-1) # b x J x K x 1
+      
+      hm_score = torch.cat([torch.take(hm_score[:,:,:1], min_ind[:,:,:1]), torch.take(hm_score[:,:,1:], min_ind[:,:,1:])], dim=2)
+      hm_score = hm_score.unsqueeze(-1)
+      # return hm_score # success convert tot tensorrt 7 !!!
+      
       min_dist = min_dist.unsqueeze(-1)
       min_ind = min_ind.view(batch, num_joints, K, 1, 1).expand(
           batch, num_joints, K, 1, 2)
-      hm_kps = hm_kps.gather(3, min_ind)
-      hm_kps = hm_kps.view(batch, num_joints, K, 2)
+      # hm_kps_test = hm_kps.gather(3, min_ind)
+      
+      result_hm_kps = torch.zeros_like(hm_kps)
+      B, C, H, W, D = hm_kps.shape  # Размеры исходного тензора
+      # # Пройдем по всем индексам, кроме оси dim=3 (ширина)
+      # for i in range(B):
+      #     for j in range(C):
+      #         for k in range(H):
+      #             for l in range(W):
+      #               for d in range(D):
+      #                 v = min_ind[i][j][k][l][d].item()
+      #                 result_hm_kps[i][j][k][l][d] = hm_kps[i][j][k][v][d]
+         
+      # Получаем нужные индексы для оси D
+      result_hm_kps = torch.stack([
+          torch.index_select(hm_kps[i, j, k, :, d], 0, min_ind[i, j, k, :, d]) 
+          for i in range(B) 
+          for j in range(C) 
+          for k in range(H) 
+          for l in range(W)
+          for d in range(D)
+      ], dim=0).view(B, C, H, W, D)  
+                      
+      hm_kps = result_hm_kps.view(batch, num_joints, K, 2)
+      
+      # return result_hm_kps # success convert tot tensorrt 7 !!!
+      
       l = bboxes[:, :, 0].view(batch, 1, K, 1).expand(batch, num_joints, K, 1)
       t = bboxes[:, :, 1].view(batch, 1, K, 1).expand(batch, num_joints, K, 1)
       r = bboxes[:, :, 2].view(batch, 1, K, 1).expand(batch, num_joints, K, 1)
       b = bboxes[:, :, 3].view(batch, 1, K, 1).expand(batch, num_joints, K, 1)
-      mask = (hm_kps[..., 0:1] < l) + (hm_kps[..., 0:1] > r) + \
-             (hm_kps[..., 1:2] < t) + (hm_kps[..., 1:2] > b) + \
-             (hm_score < thresh) + (min_dist > (torch.max(b - t, r - l) * 0.3))
+      
+      # return b # success convert tot tensorrt 7 !!!
+      
+    #   mask = (hm_kps[..., 0:1] < l) + (hm_kps[..., 0:1] > r) + \
+    #          (hm_kps[..., 1:2] < t) + (hm_kps[..., 1:2] > b) + \
+    #          (hm_score < thresh) + (min_dist > (torch.max(b - t, r - l) * 0.3))
+                  
+      cond1 = (hm_kps[..., 0:1] < l) | (hm_kps[..., 0:1] > r)
+      cond2 = (hm_kps[..., 1:2] < t) | (hm_kps[..., 1:2] > b)
+      cond3 = (hm_score < thresh)
+      cond4 = (min_dist > (torch.max(b - t, r - l) * 0.3))
+
+      mask = cond1 | cond2 | cond3 | cond4       
+                              
+      # return mask # success convert tot tensorrt 7 !!!
+                              
+    #   mask = (mask > 0).float().expand(batch, num_joints, K, 2)
+      # mask = (mask > 0).expand(batch, num_joints, K, 2)
       mask = (mask > 0).float().expand(batch, num_joints, K, 2)
       kps = (1 - mask) * hm_kps + mask * kps
-      kps = kps.permute(0, 2, 1, 3).contiguous().view(
-          batch, K, num_joints * 2)
-  detections = torch.cat([bboxes, scores, kps, clses], dim=2)
+      # return mask
+        
+      # kps = torch.where(mask, kps, hm_kps)
+      
+      # return kps # success convert tot tensorrt !!!
+      
+    #   kps = (1 - mask) * hm_kps + mask * kps
+      kps = kps.view(batch, num_joints, K, 2).permute(0, 2, 1, 3).reshape(batch, K, 10) # num_joints * 2
+    #   kps = kps.permute(0, 2, 1, 3).contiguous().view(
+    #       batch, K, num_joints * 2)
+      
+      # return torch.cat([bboxes, scores, kps], dim=2)
+      
+      detections = torch.cat([bboxes, scores, kps, clses], dim=2)
+      
+      return detections
     
   return detections

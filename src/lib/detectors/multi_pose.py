@@ -30,6 +30,24 @@ class MultiPoseDetector(BaseDetector):
     with torch.no_grad():
       torch.cuda.synchronize()
       output = self.model(images)[-1]
+      
+      # #Trace model for torch server deploy
+      with torch.no_grad():
+          # _ = self.model.forward(images)
+          model_traced = torch.jit.trace(self.model, images)
+      model_traced.save('test_for_trt7.pt')
+      
+      # # Export the model to ONNX
+      torch.onnx.export(self.model,  # model being run
+                      images,  # model input (or a tuple for multiple inputs)
+                      "test_for_trt7.onnx",  # where to save the model (can be a file or file-like object)
+                      export_params=True,  # store the trained parameter weights inside the model file
+                      opset_version=11,  # the ONNX version to export the model to
+                      do_constant_folding=True,  # whether to execute constant folding for optimization
+                      input_names=['data'],  # the model's input names
+                      output_names=['detection'])  # the model's output names
+      
+      
       output['hm'] = output['hm'].sigmoid_()
       if self.opt.hm_hp and not self.opt.mse_loss:
         output['hm_hp'] = output['hm_hp'].sigmoid_()
@@ -65,7 +83,7 @@ class MultiPoseDetector(BaseDetector):
       dets.copy(), [meta['c']], [meta['s']],
       meta['out_height'], meta['out_width'])
     for j in range(1, self.num_classes + 1):
-      dets[0][j] = np.array(dets[0][j], dtype=np.float32).reshape(-1, 39)
+      dets[0][j] = np.array(dets[0][j], dtype=np.float32).reshape(-1, 15) #39
       # import pdb; pdb.set_trace()
       dets[0][j][:, :4] /= scale
       dets[0][j][:, 5:] /= scale
@@ -94,10 +112,10 @@ class MultiPoseDetector(BaseDetector):
         output['hm_hp'][0].detach().cpu().numpy())
       debugger.add_blend_img(img, pred, 'pred_hmhp')
   
-  def show_results(self, debugger, image, results):
+  def show_results(self, debugger, image, results, image_or_path_or_tensor):
     debugger.add_img(image, img_id='multi_pose')
     for bbox in results[1]:
       if bbox[4] > self.opt.vis_thresh:
         debugger.add_coco_bbox(bbox[:4], 0, bbox[4], img_id='multi_pose')
         debugger.add_coco_hp(bbox[5:39], img_id='multi_pose')
-    debugger.show_all_imgs(pause=self.pause)
+    debugger.show_all_imgs(pause=self.pause, image_or_path_or_tensor=image_or_path_or_tensor)

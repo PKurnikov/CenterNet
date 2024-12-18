@@ -15,6 +15,11 @@ from logger import Logger
 from datasets.dataset_factory import get_dataset
 from trains.train_factory import train_factory
 
+# import fiftyone.zoo as foz
+# foz.download_zoo_dataset(
+#     "coco-2017", source_dir="/path/to/dir-with-bdd100k-files"
+# )
+
 
 def main(opt):
   torch.manual_seed(opt.seed)

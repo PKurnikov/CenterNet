@@ -5,7 +5,8 @@ from __future__ import print_function
 import numpy as np
 import cv2
 from .ddd_utils import compute_box_3d, project_to_image, draw_box_3d
-
+import os
+  
 class Debugger(object):
   def __init__(self, ipynb=False, theme='black', 
                num_classes=-1, dataset=None, down_ratio=4):
@@ -25,12 +26,14 @@ class Debugger(object):
     if dataset == 'coco_hp':
       self.names = ['p']
       self.num_class = 1
-      self.num_joints = 17
-      self.edges = [[0, 1], [0, 2], [1, 3], [2, 4], 
-                    [3, 5], [4, 6], [5, 6], 
-                    [5, 7], [7, 9], [6, 8], [8, 10], 
-                    [5, 11], [6, 12], [11, 12], 
-                    [11, 13], [13, 15], [12, 14], [14, 16]]
+      self.num_joints = 5 #17
+      # self.edges = [[0, 1], [0, 2], [1, 3], [2, 4], 
+      #               [3, 5], [4, 6], [5, 6], 
+      #               [5, 7], [7, 9], [6, 8], [8, 10], 
+      #               [5, 11], [6, 12], [11, 12], 
+      #               [11, 13], [13, 15], [12, 14], [14, 16]]
+      self.edges = [[0, 1], [1, 2], [2, 3], [3, 4]]
+    
       self.ec = [(255, 0, 0), (0, 0, 255), (255, 0, 0), (0, 0, 255), 
                  (255, 0, 0), (0, 0, 255), (255, 0, 255),
                  (255, 0, 0), (255, 0, 0), (0, 0, 255), (0, 0, 255),
@@ -211,14 +214,15 @@ class Debugger(object):
         cv2.circle(self.imgs[img_id], (points[i][j][0] * self.down_ratio,
                                        points[i][j][1] * self.down_ratio),
                    3, (int(c[0]), int(c[1]), int(c[2])), -1)
-
-  def show_all_imgs(self, pause=False, time=0):
+  
+  def show_all_imgs(self, pause=False, time=0, image_or_path_or_tensor="test.png"):
     if not self.ipynb:
       for i, v in self.imgs.items():
-        cv2.imshow('{}'.format(i), v)
-      if cv2.waitKey(0 if pause else 1) == 27:
-        import sys
-        sys.exit(0)
+        cv2.imwrite(os.path.join('data/snow/vis', os.path.basename(image_or_path_or_tensor)), v)
+      #   cv2.imshow('{}'.format(i), v)
+      # if cv2.waitKey(0 if pause else 1) == 27:
+      #   import sys
+      #   sys.exit(0)
     else:
       self.ax = None
       nImgs = len(self.imgs)

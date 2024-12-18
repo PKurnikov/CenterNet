@@ -10,9 +10,9 @@ class opts(object):
   def __init__(self):
     self.parser = argparse.ArgumentParser()
     # basic experiment setting
-    self.parser.add_argument('task', default='ctdet',
+    self.parser.add_argument('--task', default='multi_pose',
                              help='ctdet | ddd | multi_pose | exdet')
-    self.parser.add_argument('--dataset', default='coco',
+    self.parser.add_argument('--dataset', default='coco_hp',
                              help='coco | kitti | coco_hp | pascal')
     self.parser.add_argument('--exp_id', default='default')
     self.parser.add_argument('--test', action='store_true')
@@ -22,19 +22,19 @@ class opts(object):
                                   '2: show the network output features'
                                   '3: use matplot to display' # useful when lunching training with ipython notebook
                                   '4: save all visualizations to disk')
-    self.parser.add_argument('--demo', default='', 
+    self.parser.add_argument('--demo', default='data/snow/demo/', 
                              help='path to image/ image folders/ video. '
                                   'or "webcam"')
     self.parser.add_argument('--load_model', default='',
                              help='path to pretrained model')
-    self.parser.add_argument('--resume', action='store_true',
+    self.parser.add_argument('--resume', default=True,
                              help='resume an experiment. '
                                   'Reloaded the optimizer parameter and '
                                   'set load_model to model_last.pth '
                                   'in the exp dir if load_model is empty.') 
 
     # system
-    self.parser.add_argument('--gpus', default='0', 
+    self.parser.add_argument('--gpus', default='0, 1, 2, 3', 
                              help='-1 for CPU, use comma for multiple gpus')
     self.parser.add_argument('--num_workers', type=int, default=4,
                              help='dataloader threads. 0 for single-thread.')
@@ -129,7 +129,7 @@ class opts(object):
     self.parser.add_argument('--rotate', type=float, default=0,
                              help='when not using random crop'
                                   'apply rotation augmentation.')
-    self.parser.add_argument('--flip', type = float, default=0.5,
+    self.parser.add_argument('--flip', type = float, default=0.0,
                              help='probability of applying flip augmentation.')
     self.parser.add_argument('--no_color_aug', action='store_true',
                              help='not use the color augmenation '
@@ -321,11 +321,11 @@ class opts(object):
     elif opt.task == 'multi_pose':
       # assert opt.dataset in ['coco_hp']
       opt.flip_idx = dataset.flip_idx
-      opt.heads = {'hm': opt.num_classes, 'wh': 2, 'hps': 34}
+      opt.heads = {'hm': opt.num_classes, 'wh': 2, 'hps': 10} # 34
       if opt.reg_offset:
         opt.heads.update({'reg': 2})
       if opt.hm_hp:
-        opt.heads.update({'hm_hp': 17})
+        opt.heads.update({'hm_hp': 5}) #17
       if opt.reg_hp_offset:
         opt.heads.update({'hp_offset': 2})
     else:
@@ -344,9 +344,10 @@ class opts(object):
       'multi_pose': {
         'default_resolution': [512, 512], 'num_classes': 1, 
         'mean': [0.408, 0.447, 0.470], 'std': [0.289, 0.274, 0.278],
-        'dataset': 'coco_hp', 'num_joints': 17,
-        'flip_idx': [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], 
-                     [11, 12], [13, 14], [15, 16]]},
+        'dataset': 'coco_hp', 'num_joints': 5, # 17
+        'flip_idx': [[0, 4], [1, 3]]},
+        # 'flip_idx': [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], 
+        #              [11, 12], [13, 14], [15, 16]]},
       'ddd': {'default_resolution': [384, 1280], 'num_classes': 3, 
                 'mean': [0.485, 0.456, 0.406], 'std': [0.229, 0.224, 0.225],
                 'dataset': 'kitti'},

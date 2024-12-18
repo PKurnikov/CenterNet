@@ -50,6 +50,8 @@ class BaseDetector(object):
 
     trans_input = get_affine_transform(c, s, 0, [inp_width, inp_height])
     resized_image = cv2.resize(image, (new_width, new_height))
+    
+    # inp_image = cv2.resize(resized_image, (inp_width, inp_height))
     inp_image = cv2.warpAffine(
       resized_image, trans_input, (inp_width, inp_height),
       flags=cv2.INTER_LINEAR)
@@ -137,7 +139,7 @@ class BaseDetector(object):
     tot_time += end_time - start_time
 
     if self.opt.debug >= 1:
-      self.show_results(debugger, image, results)
+      self.show_results(debugger, image, results, image_or_path_or_tensor)
     
     return {'results': results, 'tot': tot_time, 'load': load_time,
             'pre': pre_time, 'net': net_time, 'dec': dec_time,

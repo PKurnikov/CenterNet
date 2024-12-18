@@ -12,24 +12,27 @@ import torch.utils.data as data
 
 class COCOHP(data.Dataset):
   num_classes = 1
-  num_joints = 17
-  default_resolution = [512, 512]
+  num_joints = 5 #17
+  default_resolution = [512, 512] #[512, 512] [540, 960]
   mean = np.array([0.40789654, 0.44719302, 0.47026115],
                    dtype=np.float32).reshape(1, 1, 3)
   std  = np.array([0.28863828, 0.27408164, 0.27809835],
                    dtype=np.float32).reshape(1, 1, 3)
-  flip_idx = [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], 
-              [11, 12], [13, 14], [15, 16]]
+  flip_idx = [[0, 4], [1, 3]]
+  # flip_idx = [[1, 2], [3, 4], [5, 6], [7, 8], [9, 10], 
+  #             [11, 12], [13, 14], [15, 16]]
   def __init__(self, opt, split):
     super(COCOHP, self).__init__()
-    self.edges = [[0, 1], [0, 2], [1, 3], [2, 4], 
-                  [4, 6], [3, 5], [5, 6], 
-                  [5, 7], [7, 9], [6, 8], [8, 10], 
-                  [6, 12], [5, 11], [11, 12], 
-                  [12, 14], [14, 16], [11, 13], [13, 15]]
+    # self.edges = [[0, 1], [0, 2], [1, 3], [2, 4], 
+    #               [4, 6], [3, 5], [5, 6], 
+    #               [5, 7], [7, 9], [6, 8], [8, 10], 
+    #               [6, 12], [5, 11], [11, 12], 
+    #               [12, 14], [14, 16], [11, 13], [13, 15]]
+    
+    self.edges = [[0, 1], [1, 2], [2, 3], [3, 4]]
     
     self.acc_idxs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
-    self.data_dir = os.path.join(opt.data_dir, 'coco')
+    self.data_dir = os.path.join(opt.data_dir, 'snow')
     self.img_dir = os.path.join(self.data_dir, '{}2017'.format(split))
     if split == 'test':
       self.annot_path = os.path.join(
@@ -39,7 +42,7 @@ class COCOHP(data.Dataset):
       self.annot_path = os.path.join(
         self.data_dir, 'annotations', 
         'person_keypoints_{}2017.json').format(split)
-    self.max_objs = 32
+    self.max_objs = 1#32
     self._data_rng = np.random.RandomState(123)
     self._eig_val = np.array([0.2141788, 0.01817699, 0.00341571],
                              dtype=np.float32)
